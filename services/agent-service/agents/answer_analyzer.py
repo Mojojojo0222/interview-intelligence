@@ -1,7 +1,7 @@
-from crewai import Agent
-from langchain_ollama import OllamaLLM
+import os
+from crewai import Agent, LLM
 
-llm = OllamaLLM(model="llama3.2:3b", base_url="http://ollama:11434")
+llm = LLM(model="ollama/llama3.2:3b", base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))
 
 def answer_analyzer_agent():
     return Agent(

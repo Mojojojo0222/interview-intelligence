@@ -2,139 +2,93 @@ from crewai import Task
 
 def create_plan_task(agent, role: str, level: str):
     return Task(
-        description=f"""
-        Create a structured interview plan for a {level} {role} candidate.
-        Include:
-        - Key skill areas to cover (max 5)
-        - Time allocation per section
-        - Difficulty progression strategy
-        - Red flags to watch for at this level
-        Output as structured JSON.
-        """,
-        expected_output="JSON interview plan with skill areas, time allocation, and red flags",
+        description=f"Create a brief interview plan for a {level} {role}. List 3 key skill areas to test and 2 red flags to watch for. Be concise.",
+        expected_output="A short interview plan with skill areas and red flags.",
         agent=agent,
     )
 
 def create_questions_task(agent, role: str, level: str, plan: str):
     return Task(
-        description=f"""
-        Based on this interview plan: {plan}
-        Generate 5 technical interview questions for a {level} {role}.
-        Each question must:
-        - Test real hands-on experience
-        - Not be answerable by simply reciting documentation
-        - Include what a strong answer looks like
-        Output as JSON array with question and expected_strong_answer fields.
-        """,
-        expected_output="JSON array of 5 questions with expected strong answers",
+        description=f"Generate 3 technical interview questions for a {level} {role}. Each question should test real hands-on experience, not theory. Number them 1, 2, 3.",
+        expected_output="3 numbered technical interview questions.",
         agent=agent,
     )
 
 def create_analyze_answer_task(agent, question: str, answer: str):
     return Task(
-        description=f"""
-        Analyze this candidate answer:
-        Question: {question}
-        Answer: {answer}
+        description=f"""Score this interview answer from 0-10 on each dimension.
+Question: {question}
+Answer: {answer}
 
-        Score on:
-        - Technical depth (0-10)
-        - Specificity with real examples (0-10)
-        - Clarity of explanation (0-10)
-        - Overall authenticity (0-10)
-        Provide brief reasoning for each score.
-        Output as JSON.
-        """,
-        expected_output="JSON with scores for depth, specificity, clarity, authenticity and reasoning",
+Give scores like this exactly:
+technical_depth: X
+specificity: X  
+clarity: X
+authenticity: X
+reasoning: one sentence why""",
+        expected_output="Scores for technical_depth, specificity, clarity, authenticity each 0-10.",
         agent=agent,
     )
 
 def create_ai_detection_task(agent, answer: str):
     return Task(
-        description=f"""
-        Analyze this interview answer for signs of AI generation:
-        Answer: {answer}
+        description=f"""Analyze if this answer was written by a human or AI.
+Answer: {answer}
 
-        Check for:
-        - Overly formal or structured language
-        - Lack of personal pronouns or first-person experience
-        - Suspiciously comprehensive coverage of all sub-topics
-        - Perfect grammar with no natural hesitation or filler
-        - Generic examples not tied to specific companies/projects
-        - Unnaturally balanced pros/cons lists
-
-        Return:
-        - ai_likelihood_score: 0-100
-        - confidence: low/medium/high
-        - detected_patterns: list of patterns found
-        - verdict: "likely_human" | "possibly_ai" | "likely_ai"
-        Output as JSON.
-        """,
-        expected_output="JSON with ai_likelihood_score, confidence, detected_patterns, and verdict",
+Look for: formal language, no personal stories, perfect structure, no hesitation words.
+Respond exactly like this:
+ai_likelihood_score: X (0-100, higher means more likely AI)
+verdict: likely_human OR possibly_ai OR likely_ai
+reason: one sentence""",
+        expected_output="ai_likelihood_score 0-100, verdict, and reason.",
         agent=agent,
     )
 
 def create_domain_validation_task(agent, question: str, answer: str):
     return Task(
-        description=f"""
-        Validate the technical accuracy of this answer:
-        Question: {question}
-        Answer: {answer}
+        description=f"""Check if this DevOps/AWS answer is technically correct.
+Question: {question}
+Answer: {answer}
 
-        Check for:
-        - Factual correctness of AWS/DevOps/SRE claims
-        - Correct use of terminology
-        - Any dangerous misunderstandings or anti-patterns
-        - Missing critical concepts
-
-        Return:
-        - accuracy_score: 0-10
-        - correct_claims: list
-        - incorrect_claims: list
-        - missing_concepts: list
-        Output as JSON.
-        """,
-        expected_output="JSON with accuracy_score, correct_claims, incorrect_claims, missing_concepts",
+Respond exactly like this:
+accuracy_score: X (0-10)
+correct: what they got right in one sentence
+incorrect: any mistakes in one sentence (or 'none')""",
+        expected_output="accuracy_score 0-10, correct claims, incorrect claims.",
         agent=agent,
     )
 
 def create_followup_task(agent, question: str, answer: str, analysis: str):
     return Task(
-        description=f"""
-        Based on this exchange:
-        Original Question: {question}
-        Candidate Answer: {answer}
-        Analysis: {analysis}
+        description=f"""Based on this interview answer, generate 2 follow-up questions.
+Question asked: {question}
+Candidate said: {answer}
 
-        Generate 3 follow-up questions that:
-        - Dig into specific claims the candidate made
-        - Cannot be answered well by an LLM without real experience
-        - Expose potential knowledge gaps identified in the analysis
-        - Reference specific details from their answer to make it personal
+The follow-ups must:
+- Reference something specific the candidate said
+- Be impossible to answer without real experience
+- Not be answerable by ChatGPT
 
-        Output as JSON array with question and why_this_question fields.
-        """,
-        expected_output="JSON array of 3 follow-up questions with reasoning",
+Number them 1 and 2.""",
+        expected_output="2 numbered follow-up questions based on the candidate's specific answer.",
         agent=agent,
     )
 
 def create_report_task(agent, session_data: dict):
+    candidate = session_data.get("candidate_name", "Candidate")
+    role = session_data.get("role", "Engineer")
+    answers_count = len(session_data.get("answers", []))
     return Task(
-        description=f"""
-        Generate a comprehensive interview report from this session data:
-        {session_data}
+        description=f"""Write a hiring report for {candidate} applying for {role}.
+They answered {answers_count} questions.
+Session data summary: {str(session_data)[:500]}
 
-        Report must include:
-        - Candidate summary
-        - Technical scores per question (average)
-        - AI usage assessment with overall likelihood
-        - Domain accuracy summary
-        - Top 3 strengths
-        - Top 3 knowledge gaps
-        - Final recommendation: HIRE / MAYBE / NO_HIRE
-        - Recommendation justification (2-3 sentences)
-        Output as structured JSON.
-        """,
-        expected_output="Complete JSON interview report with all scores and hire recommendation",
+Write the report like this exactly:
+recommendation: HIRE or MAYBE or NO_HIRE
+summary: two sentences about the candidate
+strengths: list 2 strengths
+gaps: list 2 knowledge gaps
+ai_usage: low or medium or high suspicion of AI use""",
+        expected_output="Hiring recommendation with summary, strengths, gaps, and AI usage assessment.",
         agent=agent,
     )

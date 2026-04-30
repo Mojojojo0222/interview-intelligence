@@ -1,12 +1,12 @@
-from crewai import Agent
-from langchain_ollama import OllamaLLM
+import os
+from crewai import Agent, LLM
 
-llm = OllamaLLM(model="llama3.2:3b", base_url="http://ollama:11434")
+llm = LLM(model="ollama/llama3.2:3b", base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))
 
 def adaptive_questioner_agent():
     return Agent(
         role="Adaptive Follow-up Questioner",
-        goal="Generate unpredictable follow-up questions that expose gaps in knowledge and cannot be answered by LLMs",
+        goal="Generate unpredictable follow-up questions that expose gaps and cannot be answered by LLMs",
         backstory=(
             "You specialize in crafting follow-up questions that go beyond textbook answers. "
             "You ask about specific failure scenarios, edge cases, personal decisions made under pressure, "
