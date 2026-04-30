@@ -13,7 +13,7 @@
     "start": "react-scripts start",
     "build": "react-scripts build"
   },
-  "proxy": "http://interview-service:8000",
+  "proxy": "http://localhost:8001",
   "browserslist": {
     "production": [">0.2%", "not dead"],
     "development": ["last 1 chrome version"]

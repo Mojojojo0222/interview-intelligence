@@ -8,7 +8,8 @@ import sys, os
 # Works regardless of which directory uvicorn is launched from
 base = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(base, '..', 'agent-service'))
-from crew import run_interview_planning, run_answer_analysis, run_report_generation
+from crew import run_interview_planning, run_answer_analysis, run_report_generation, get_system_learning_stats
+from tools.experience_memory import store_feedback
 
 app = FastAPI(title="AI Interview Intelligence System", version="1.0.0")
 
@@ -35,6 +36,11 @@ class SubmitAnswerRequest(BaseModel):
 
 class GenerateReportRequest(BaseModel):
     session_id: str
+
+class FeedbackRequest(BaseModel):
+    experience_id: str
+    correct_label: str  # "human" or "ai"
+    notes: str = ""
 
 
 @app.get("/health")
@@ -118,6 +124,7 @@ async def submit_answer(req: SubmitAnswerRequest):
     session["answers"].append({
         "question": req.question,
         "answer": req.answer,
+        "experience_id": result.get("experience_id"),
         "analysis": result.get("analysis"),
         "ai_detection": result.get("ai_detection"),
         "domain_validation": result.get("domain_validation"),
@@ -126,10 +133,12 @@ async def submit_answer(req: SubmitAnswerRequest):
     })
 
     return {
+        "experience_id": result.get("experience_id"),
         "analysis": result.get("analysis"),
         "ai_detection": result.get("ai_detection"),
         "domain_validation": result.get("domain_validation"),
         "followup_questions": result.get("followup_questions"),
+        "past_similar_cases": result.get("past_similar_cases", 0),
     }
 
 
@@ -159,3 +168,22 @@ def get_session(session_id: str):
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     return session
+
+
+@app.post("/feedback")
+def submit_feedback(req: FeedbackRequest):
+    """You tell the system if detection was correct — it learns from this."""
+    success = store_feedback(req.experience_id, req.correct_label, req.notes)
+    if not success:
+        raise HTTPException(status_code=404, detail="Experience not found")
+    return {
+        "message": f"Feedback recorded. System now knows this was '{req.correct_label}'. It will use this in future detections.",
+        "experience_id": req.experience_id,
+        "correct_label": req.correct_label,
+    }
+
+
+@app.get("/learning")
+def learning_stats():
+    """See how much the system has learned so far."""
+    return get_system_learning_stats()
