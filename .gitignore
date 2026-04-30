@@ -10,3 +10,6 @@ frontend/build/
 .terraform.lock.hcl
 ollama_data/
 *.log
+venv/
+.venv/
+env/
