@@ -1,0 +1,76 @@
+name: CI - Build & Push to ECR
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install -r services/interview-service/requirements.txt
+          pip install pytest pytest-asyncio httpx
+
+      - name: Run tests
+        run: pytest tests/ -v --tb=short
+        continue-on-error: false
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & push interview-service
+        run: |
+          docker build -t $ECR_REGISTRY/interview-service:${{ github.sha }} \
+            -f services/interview-service/Dockerfile ./services
+          docker push $ECR_REGISTRY/interview-service:${{ github.sha }}
+          docker tag $ECR_REGISTRY/interview-service:${{ github.sha }} \
+            $ECR_REGISTRY/interview-service:latest
+          docker push $ECR_REGISTRY/interview-service:latest
+
+      - name: Build & push frontend
+        run: |
+          docker build -t $ECR_REGISTRY/interview-frontend:${{ github.sha }} ./frontend
+          docker push $ECR_REGISTRY/interview-frontend:${{ github.sha }}
+          docker tag $ECR_REGISTRY/interview-frontend:${{ github.sha }} \
+            $ECR_REGISTRY/interview-frontend:latest
+          docker push $ECR_REGISTRY/interview-frontend:latest
+
+      - name: Save image tags
+        run: echo "${{ github.sha }}" > image-tag.txt
+
+      - name: Upload image tag artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-tag
+          path: image-tag.txt

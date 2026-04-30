@@ -1,0 +1,61 @@
+name: CD - Deploy to EKS
+
+on:
+  workflow_run:
+    workflows: ["CI - Build & Push to ECR"]
+    types: [completed]
+    branches: [main]
+
+env:
+  AWS_REGION: us-east-1
+  EKS_CLUSTER: interview-intelligence-cluster
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download image tag
+        uses: actions/download-artifact@v4
+        with:
+          name: image-tag
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Set image tag
+        run: echo "IMAGE_TAG=$(cat image-tag.txt)" >> $GITHUB_ENV
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER }} --region ${{ env.AWS_REGION }}
+
+      - name: Deploy to EKS
+        run: |
+          # Update image tags in k8s manifests
+          sed -i "s|IMAGE_TAG|${{ env.IMAGE_TAG }}|g" k8s/deployments/interview-service.yaml
+          sed -i "s|IMAGE_TAG|${{ env.IMAGE_TAG }}|g" k8s/deployments/frontend.yaml
+
+          # Apply all manifests
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/deployments/
+          kubectl apply -f k8s/services/
+          kubectl apply -f k8s/ingress.yaml
+          kubectl apply -f k8s/hpa.yaml
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/interview-service -n interview-system --timeout=300s
+          kubectl rollout status deployment/frontend -n interview-system --timeout=300s
+
+      - name: Verify deployment
+        run: kubectl get pods -n interview-system
