@@ -1,5 +1,6 @@
 from crewai import Task
 
+
 def create_plan_task(agent, role: str, level: str):
     return Task(
         description=f"Create a brief interview plan for a {level} {role}. List 3 key skill areas to test and 2 red flags to watch for. Be concise.",
@@ -7,12 +8,14 @@ def create_plan_task(agent, role: str, level: str):
         agent=agent,
     )
 
+
 def create_questions_task(agent, role: str, level: str, plan: str):
     return Task(
         description=f"Generate 3 technical interview questions for a {level} {role}. Each question should test real hands-on experience, not theory. Number them 1, 2, 3.",
         expected_output="3 numbered technical interview questions.",
         agent=agent,
     )
+
 
 def create_analyze_answer_task(agent, question: str, answer: str):
     return Task(
@@ -30,43 +33,36 @@ reasoning: one sentence why""",
         agent=agent,
     )
 
+
 def create_ai_detection_task(agent, answer: str, experience_context: str = ""):
     return Task(
-        description=f"""You are an expert at catching AI-generated answers, even ones that have been edited to sound human.
+        description=f"""You are an expert at catching AI-generated answers, even ones edited to sound human.
 
 {experience_context}
 
-Now analyze this NEW answer:
+Analyze this answer:
 ---
 {answer}
 ---
 
-Check for these RED FLAGS one by one:
+Check each RED FLAG:
+RED FLAG 1 - NO SPECIFIC NUMBERS: Uses vague words instead of real numbers?
+RED FLAG 2 - NO FAILURE STORY: Only describes success, no mistakes mentioned?
+RED FLAG 3 - NO TOOL VERSIONS: No specific versions like Kubernetes 1.28?
+RED FLAG 4 - PERFECT COVERAGE: Covers every sub-topic equally with no gaps?
+RED FLAG 5 - NO PERSONAL OPINION: Never says "I prefer X because in my experience"?
+RED FLAG 6 - HIDDEN STRUCTURE: Reads like a document not a conversation?
+RED FLAG 7 - HEDGING LANGUAGE: Uses "it's worth noting", "one approach would be"?
 
-RED FLAG 1 - NO SPECIFIC NUMBERS: Does the answer use vague words like "large", "many", "significant" instead of real numbers like "47 nodes", "3TB", "p99 latency of 800ms"? Real engineers remember specific numbers.
-
-RED FLAG 2 - NO FAILURE STORY: Does the answer only describe the happy path? Real engineers always mention something that went wrong or a lesson learned. AI answers are always successful.
-
-RED FLAG 3 - NO TOOL VERSIONS: Does the answer mention specific versions like "Glue 3.0", "Kubernetes 1.28", "OpenSearch 2.11"? Real engineers remember versions they worked with.
-
-RED FLAG 4 - PERFECT TOPIC COVERAGE: Does the answer cover every single sub-topic equally well with no gaps? Real humans focus on what they know and skip what they don't.
-
-RED FLAG 5 - NO PERSONAL OPINION: Does the answer avoid saying "I prefer X over Y because in my experience..."? AI stays neutral, humans have opinions.
-
-RED FLAG 6 - NARRATIVE STRUCTURE: Does it flow like a story someone told, or like a structured document with clear sections? AI answers have hidden structure even when humanized.
-
-RED FLAG 7 - HEDGING LANGUAGE: Does it use phrases like "it's worth noting", "it's important to", "one approach would be"? These are AI patterns even in humanized text.
-
-Count how many red flags you find. Be strict and suspicious.
-
-Respond exactly like this:
-ai_likelihood_score: X (0-100. 0-30=human, 31-60=suspicious, 61-100=AI)
+Respond exactly:
+ai_likelihood_score: X
 verdict: likely_human OR possibly_ai OR likely_ai
-red_flags_found: X out of 7
-reason: two sentences explaining the top signals you found""",
-        expected_output="ai_likelihood_score 0-100, verdict, red_flags_found, and reason.",
+red_flags_found: X
+reason: two sentences on top signals found""",
+        expected_output="ai_likelihood_score 0-100, verdict, red_flags_found, reason.",
         agent=agent,
     )
+
 
 def create_domain_validation_task(agent, question: str, answer: str):
     return Task(
@@ -74,66 +70,122 @@ def create_domain_validation_task(agent, question: str, answer: str):
 Question: {question}
 Answer: {answer}
 
-Respond exactly like this:
+Respond exactly:
 accuracy_score: X (0-10)
 correct: what they got right in one sentence
-incorrect: any mistakes in one sentence (or 'none')""",
-        expected_output="accuracy_score 0-10, correct claims, incorrect claims.",
+incorrect: any mistakes (or 'none')
+missing: key concepts not mentioned (or 'none')""",
+        expected_output="accuracy_score, correct claims, incorrect claims, missing concepts.",
         agent=agent,
     )
 
+
 def create_followup_task(agent, question: str, answer: str, analysis: str):
     return Task(
-        description=f"""You must generate 2 follow-up questions that will EXPOSE whether this candidate truly has hands-on experience or is faking it with AI help.
+        description=f"""Generate 3 follow-up questions that will EXPOSE whether this candidate truly has hands-on experience.
 
 Question asked: {question}
 Candidate answered: {answer}
 
-Rules for your follow-up questions:
-- Pick ONE specific claim or number they mentioned and drill into it
-- Ask about a specific failure, edge case, or unexpected problem
-- Ask something that requires them to recall a specific moment, not explain a concept
-- Make it impossible to answer well without having actually done this work
-- ChatGPT cannot answer these well because they require personal memory
+Rules:
+- Pick specific claims they made and drill into them
+- Ask about a specific failure or edge case
+- Require personal memory to answer well
+- ChatGPT cannot answer these without real experience
 
-Example of a BAD follow-up: "Can you explain more about AWS Glue?"
-Example of a GOOD follow-up: "You mentioned multipart uploads - what was the chunk size you used and why, and did you ever have a failed part that needed retry logic?"
-
-Number them 1 and 2.""",
-        expected_output="2 follow-up questions that require genuine personal experience to answer.",
+Number them 1, 2, 3.""",
+        expected_output="3 numbered follow-up questions requiring genuine personal experience.",
         agent=agent,
     )
+
 
 def create_report_task(agent, session_data: dict):
     candidate = session_data.get("candidate_name", "Candidate")
     role = session_data.get("role", "Engineer")
-    answers_count = len(session_data.get("answers", []))
+    level = session_data.get("level", "mid")
+    answers = session_data.get("answers", [])
+    answers_count = len(answers)
+    started_at = session_data.get("started_at", "")
 
-    # Extract AI scores from session for report context
+    # Build answer summaries for the agent
+    answer_summaries = []
     ai_scores = []
-    for a in session_data.get("answers", []):
-        det = a.get("ai_detection", {})
-        if isinstance(det, dict) and det.get("ai_likelihood_score"):
-            ai_scores.append(det["ai_likelihood_score"])
+    layer2_results = []
+
+    for i, ans in enumerate(answers, 1):
+        det = ans.get("ai_detection", {})
+        ana = ans.get("analysis", {})
+        voice = ans.get("voice_signals", {})
+        layer2 = ans.get("layer2_result")
+
+        ai_score = det.get("final_score", det.get("ai_likelihood_score", 50))
+        ai_scores.append(ai_score)
+
+        summary = f"""
+Answer {i} (at {ans.get('timestamp', '')[:19].replace('T', ' ')}):
+  Question: {ans.get('question', '')[:100]}
+  AI Score: {ai_score}/100 | Verdict: {det.get('verdict', 'unknown')}
+  Red Flags: {det.get('red_flags_found', 0)}/7
+  Technical Depth: {ana.get('technical_depth', 5)}/10
+  Specificity: {ana.get('specificity', 5)}/10
+  Response Time: {voice.get('response_time', 0):.1f}s
+  WPM: {voice.get('wpm', 0)} | Hesitations: {voice.get('hesitations', 0)}
+  Reading Signal: {voice.get('reading_signal', False)}
+  Layer 2: {layer2.get('gap_type', 'not tested') if layer2 else 'not tested'}
+  Layer 2 Conclusion: {layer2.get('conclusion', '') if layer2 else ''}"""
+        answer_summaries.append(summary)
+
+        if layer2:
+            layer2_results.append(layer2)
+
     avg_ai = round(sum(ai_scores) / len(ai_scores)) if ai_scores else 0
-    high_ai = any(s >= 60 for s in ai_scores)
+    high_ai_count = sum(1 for s in ai_scores if s >= 60)
+    ai_gaps = sum(1 for r in layer2_results if r.get("gap_type") == "AI_GAP")
+    knowledge_gaps = sum(1 for r in layer2_results if r.get("gap_type") == "KNOWLEDGE_GAP")
 
     return Task(
-        description=f"""Write a hiring report for {candidate} applying for {role}.
-They answered {answers_count} questions.
-Average AI likelihood score across answers: {avg_ai}/100
-High AI suspicion detected: {high_ai}
+        description=f"""Generate a complete, HR-friendly interview report. Write in plain English that anyone can understand.
 
-Important: If average AI score is above 50, the recommendation should reflect serious concern about answer authenticity.
-If high AI suspicion is True, explicitly call it out in the report.
+CANDIDATE: {candidate}
+ROLE: {role} ({level})
+INTERVIEW DATE: {started_at[:10] if started_at else 'today'}
+TOTAL ANSWERS: {answers_count}
+AVERAGE AI SCORE: {avg_ai}/100
+HIGH AI SUSPICION ANSWERS: {high_ai_count} out of {answers_count}
+AI GAPS IN DEEP TESTING: {ai_gaps}
+KNOWLEDGE GAPS IN DEEP TESTING: {knowledge_gaps}
 
-Write the report like this exactly:
-recommendation: HIRE or MAYBE or NO_HIRE
-summary: two sentences about the candidate performance and authenticity
-strengths: list 2 genuine strengths observed
-gaps: list 2 knowledge gaps or concerns
-ai_usage: low or medium or high
-ai_note: one sentence about whether answers appeared authentic or AI-assisted""",
-        expected_output="Hiring recommendation with summary, strengths, gaps, AI usage assessment and note.",
+ANSWER DATA:
+{''.join(answer_summaries)}
+
+Write the report in this EXACT format:
+
+VERDICT: HIRE or MAYBE or NO_HIRE
+CONFIDENCE: X% (how confident you are in this verdict)
+
+EXECUTIVE_SUMMARY: Write 3 sentences. First sentence: overall impression. Second sentence: biggest concern. Third sentence: recommendation action. Use simple words, no jargon.
+
+AI_VERDICT: CLEAN or SUSPICIOUS or CONFIRMED_AI_USE
+AI_EXPLANATION: One paragraph explaining what AI patterns were found and what it means. Write as if explaining to an HR manager who has never heard of AI detection.
+
+STRENGTHS:
+- strength one in plain English
+- strength two in plain English
+- strength three in plain English
+
+CONCERNS:
+- concern one in plain English
+- concern two in plain English
+- concern three in plain English
+
+KNOWLEDGE_MAP:
+KNOWS_WELL: topics they demonstrated real knowledge of
+SURFACE_ONLY: topics they answered but failed deep follow-up
+GAPS: topics they clearly don't know
+
+BEHAVIORAL_SIGNALS: One paragraph about voice patterns, response times, reading signals. Plain English for HR.
+
+FINAL_NOTE: One sentence final recommendation for the hiring manager.""",
+        expected_output="Complete HR-friendly interview report with all sections filled.",
         agent=agent,
     )

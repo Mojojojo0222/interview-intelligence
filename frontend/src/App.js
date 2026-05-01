@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import Report from './Report';
 import axios from 'axios';
 
 const API = 'http://localhost:8001';
@@ -288,66 +289,16 @@ export default function App() {
   );
 
   // ── REPORT SCREEN ─────────────────────────────────────────────────────────
-  if (phase === 'report') {
-    const rec = report?.recommendation || 'MAYBE';
-    const recColor = { HIRE: '#22c55e', NO_HIRE: '#ef4444', MAYBE: '#f59e0b' }[rec] || '#f59e0b';
-    return (
-      <div style={{ minHeight: '100vh', background: '#0f172a', fontFamily: 'Segoe UI, sans-serif' }}>
-        <style>{`@keyframes slideIn { from { opacity:0; transform:translateY(-10px) } to { opacity:1; transform:translateY(0) } }`}</style>
-        <div style={{ maxWidth: 900, margin: '0 auto', padding: '2rem' }}>
-          <h1 style={{ color: '#e2e8f0' }}>Interview Report</h1>
-          <p style={{ color: '#64748b' }}>{form.candidate_name} · {form.role} · {form.level} · {answers.length} answers analyzed</p>
-
-          <div style={{ background: '#1e293b', borderRadius: 16, padding: '2rem', marginBottom: '1.5rem', textAlign: 'center', border: `2px solid ${recColor}` }}>
-            <div style={{ fontSize: '3.5rem', fontWeight: 900, color: recColor }}>{rec}</div>
-            <p style={{ color: '#94a3b8', marginTop: '0.75rem', fontSize: '1rem' }}>{report?.summary || report?.raw?.slice(0, 300)}</p>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
-            {[
-              { label: 'Strengths', value: report?.strengths, color: '#22c55e' },
-              { label: 'Knowledge Gaps', value: report?.gaps, color: '#ef4444' },
-              { label: 'AI Usage', value: report?.ai_usage?.toUpperCase(), color: '#f59e0b' },
-            ].map(({ label, value, color }) => (
-              <div key={label} style={{ background: '#1e293b', borderRadius: 12, padding: '1.25rem', border: '1px solid #334155' }}>
-                <h3 style={{ color, marginTop: 0, fontSize: '0.9rem' }}>{label}</h3>
-                <p style={{ color: '#94a3b8', margin: 0, fontSize: '0.9rem' }}>{value || 'See full report'}</p>
-              </div>
-            ))}
-          </div>
-
-          <h3 style={{ color: '#e2e8f0' }}>Captured Answers ({answers.length})</h3>
-          {answers.map((ans, i) => {
-            const aiScore = ans.result?.ai_score || 0;
-            const scoreColor = aiScore >= 70 ? '#ef4444' : aiScore >= 40 ? '#f59e0b' : '#22c55e';
-            return (
-              <div key={i} style={{ background: '#1e293b', borderRadius: 12, padding: '1.25rem', marginBottom: '0.75rem', border: '1px solid #334155' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                  <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Answer {i + 1} · {ans.time}</span>
-                  <span style={{ color: scoreColor, fontWeight: 700, fontSize: '1.1rem' }}>AI: {aiScore}/100</span>
-                </div>
-                <p style={{ color: '#cbd5e1', fontSize: '0.88rem', margin: '0 0 0.75rem' }}>{ans.answer.slice(0, 200)}...</p>
-                {ans.result?.experience_id && (
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <span style={{ color: '#64748b', fontSize: '0.78rem' }}>Was detection correct?</span>
-                    <button onClick={() => submitFeedback(ans.result.experience_id, 'human')}
-                      style={{ background: '#14532d', color: '#86efac', border: 'none', borderRadius: 4, padding: '0.2rem 0.6rem', cursor: 'pointer', fontSize: '0.78rem' }}>Human ✓</button>
-                    <button onClick={() => submitFeedback(ans.result.experience_id, 'ai')}
-                      style={{ background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: 4, padding: '0.2rem 0.6rem', cursor: 'pointer', fontSize: '0.78rem' }}>AI ✓</button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          <button onClick={() => { setPhase('setup'); setSession(null); setAnswers([]); setAlerts([]); setReport(null); setAnswerCount(0); }}
-            style={{ background: '#3b82f6', color: 'white', border: 'none', borderRadius: 8, padding: '0.75rem 2rem', cursor: 'pointer', fontWeight: 700, fontSize: '1rem' }}>
-            New Interview
-          </button>
-        </div>
-      </div>
-    );
-  }
+  if (phase === 'report') return (
+    <Report
+      report={report}
+      answers={answers}
+      form={form}
+      session={session}
+      onNew={() => { setPhase('setup'); setSession(null); setAnswers([]); setAlerts([]); setReport(null); setAnswerCount(0); }}
+      onFeedback={submitFeedback}
+    />
+  );
 
   // ── INTERVIEW SCREEN ──────────────────────────────────────────────────────
   const statusConfig = {
