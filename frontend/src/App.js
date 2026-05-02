@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Report from './Report';
 import axios from 'axios';
 
-const API = 'http://localhost:8001';
+const API = process.env.REACT_APP_API_URL || 'http://localhost:8001';
+const WS_BASE = process.env.REACT_APP_WS_URL || 'ws://localhost:8001';
 const SILENCE_THRESHOLD = 0.01;
 const SILENCE_DURATION = 2500; // 2.5s silence = candidate done speaking
 const MIN_SPEECH_DURATION = 3000; // ignore clips under 3s
@@ -63,7 +64,7 @@ export default function App() {
 
   // ── WebSocket for private alerts ──────────────────────────────────────────
   const connectWS = useCallback((sessionId) => {
-    const ws = new WebSocket(`ws://localhost:8001/ws/interviewer/${sessionId}`);
+    const ws = new WebSocket(`${WS_BASE}/ws/interviewer/${sessionId}`);
     ws.onmessage = (e) => {
       const alert = JSON.parse(e.data);
       const enriched = { ...alert, ts: new Date().toLocaleTimeString() };

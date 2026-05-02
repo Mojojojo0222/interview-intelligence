@@ -12,9 +12,10 @@ sys.path.insert(0, os.path.join(base, '..', 'audio-service'))
 from crew import run_interview_planning, run_answer_analysis, run_report_generation, get_system_learning_stats
 from tools.experience_memory import store_feedback
 from alerts import alert_manager, build_alert
+from config import CORS_ORIGINS, IS_PRODUCTION
 
 app = FastAPI(title="AI Interview Intelligence System", version="2.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"])
 
 sessions: dict = {}
 

@@ -1,7 +1,10 @@
-import os
+import os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                '..', '..', '..', 'interview-service'))
+from config import OLLAMA_BASE_URL, OLLAMA_MODEL
 from crewai import Agent, LLM
 
-llm = LLM(model="ollama/llama3.2:3b", base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))
+llm = LLM(model=f"ollama/{OLLAMA_MODEL}", base_url=OLLAMA_BASE_URL)
 
 def planner_agent():
     return Agent(
